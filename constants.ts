@@ -21,8 +21,7 @@ export const ROAD_SIDE_VIOLATIONS = [
 export const EQUIPMENT_CHECKLIST_ITEMS = {
   Camera: [
     "Camera not working",
-    "Coordinates or speed appearing zero",
-    "Coordinates are incorrect",
+    "Coordinates or speed appearing zero or stuck",
     "Camera angle is incorrect (Missing FOD or driver)",
     "Audio is missing",
     "Video is blurred",
@@ -76,8 +75,8 @@ IMPORTANT: If there is a text overlay on the video with a timestamp, you MUST ex
 Analyze what is happening on the road in these frames. Focus on detecting and classifying on-road violations into one of these categories: 'Lane Discipline', 'Speed violation', 'Improper Overtaking', 'Improper Turn', or 'Momentum Preservation'.
 
 Carefully observe road markings, vehicle position, speed indicator, and surrounding traffic. Use the following criteria for each violation type:
-1.  **Lane Discipline (Pakistan context)**: The right-most lane is the fastest lane. It is a violation if the truck is driving in the right-most lane without a valid reason (like overtaking). Also detect middle-lane driving or overtaking in a non-overtaking zone (two-way road).
-2.  **Speed violation**: Check the speed displayed on the bottom-right of the frame. Allowable daytime limit: 50 km/h; nighttime limit (after sunset): 40 km/h. Identify speed violations relative to the time of day (use lighting or visible sky to infer day/night).
+1.  **Lane Discipline (Pakistan context - Right-Hand Drive)**: In Pakistan, heavy vehicles like trucks are prohibited from using the right-most (fastest) lane. It is a violation if the truck is driving or overtaking from the right-most lane. Also detect middle-lane driving or overtaking in a non-overtaking zone (two-way road).
+2.  **Speed violation**: Check the speed displayed on the corner of the frame (max digits e.g. xxx km/h format) . Allowable daytime limit: 50 km/h; nighttime limit (after sunset): 40 km/h. Identify speed violations relative to the time of day (use lighting or visible sky to infer day/night).
 3.  **Improper Overtaking**: Determine if the driver follows unsafe overtaking practices: not checking mirrors, not ensuring a clear road ahead, not maintaining a safe distance, overtaking in risky or congested situations. Also, check if the driver is Overtaking in a non-overtaking zone i.e two-way road.
 4.  **Improper Turn**: Identify unsafe turns, especially U-turns. A U-turn is considered a violation if the vehicle fails to come to a complete stop before initiating the turn and instead performs it in the same speed. Also, identify any turn made without significantly slowing down or scanning the surroundings. Allowable Turn speed limit: 10 km/h.
 5.  **Momentum Preservation**: Identify behaviors indicating hasty or unsafe speed maintenance, such as covering both lanes while overtaking, maintaining high speed through populated or congested areas, overtaking from the wrong side, driving close to pedestrians or other vehicles, Harsh turn/cornering , unsteady or jerky driving, harsh braking, and harsh acceleration.
@@ -90,13 +89,12 @@ You are a video quality assurance AI. Your task is to analyze the provided video
 
 **Camera Issues:**
 1.  **Camera not working**: Is the video black, static, or clearly not recording anything?
-2.  **Coordinates or speed appearing zero**: If there is a data overlay for GPS coordinates or speed, check if they are stuck at zero throughout the video.
-3.  **Coordinates are incorrect**: If there's an overlay, do the coordinates fail to change appropriately for a moving vehicle?
-4.  **Camera angle is incorrect (Missing FOD or driver)**: For an in-cabin view, is the driver or co-driver (FOD) mostly out of frame? The angle should capture the driver.
-5.  **Audio is missing**: Analyze the audio track. Is it completely silent when there should be ambient noise (e.g., engine, road)?
-6.  **Video is blurred**: Is the video consistently out of focus, making it difficult to see details?
-7.  **Camera view hindered**: Is the camera's view partially or fully blocked by an object (e.g., sun visor, item on the dashboard, dirt on the lens)?
-8.  **Poor night vision**: During nighttime scenes, is the video excessively dark or grainy to the point of being unusable?
+2.  **Coordinates or speed appearing zero or stuck**: If there is a data overlay for GPS coordinates or speed, check if they are stuck or are zero throughout the video.
+3.  **Camera angle is incorrect (Missing FOD or driver)**: For an in-cabin view, is the driver or co-driver (FOD) mostly out of frame? The angle should capture the driver.
+4.  **Audio is missing**: Analyze the audio track. Is it completely silent when there should be ambient noise (e.g., engine, road)?
+5.  **Video is blurred**: Is the video consistently out of focus, making it difficult to see details or is partially blur?
+6.  **Camera view hindered**: Is the camera's view partially or fully blocked by an object (e.g., sun visor, item on the dashboard, dirt on the lens)?
+7.  **Poor night vision**: During nighttime scenes, is the video excessively dark?
 
 **Video Issues:**
 1.  **Video buffering**: Does the video appear to freeze or stutter frequently?
