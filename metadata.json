@@ -1,0 +1,5 @@
+{
+  "name": "Driving Behavior Analysis Agent",
+  "description": "An application that uses Gemini to analyze uploaded videos of driving behavior (in-cabin or road-side) and identifies potential violations based on predefined rules.",
+  "requestFramePermissions": []
+}
