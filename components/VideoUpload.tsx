@@ -20,7 +20,7 @@ const VideoTypeSelector: React.FC<{ selectedType: VideoType | null, onSelect: (t
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
             >
-                {type === VideoType.InCabin ? 'In-Cabin Analysis' : 'Road-Side Analysis'}
+                {type === VideoType.Cabin ? 'Cabin Camera' : 'Front Camera'}
             </button>
         ))}
     </div>

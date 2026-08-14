@@ -1,23 +1,28 @@
-
-import React from 'react';
+import React, { forwardRef } from 'react';
 
 interface VideoPlayerProps {
   videoUrl: string;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoUrl }) => {
-  return (
-    <div className="w-full bg-black rounded-lg overflow-hidden border border-gray-700 shadow-lg">
-      <video
-        key={videoUrl}
-        className="w-full aspect-video"
-        controls
-        autoPlay
-        muted
-      >
-        <source src={videoUrl} />
-        Your browser does not support the video tag.
-      </video>
-    </div>
-  );
-};
+// forwardRef so the parent can seek the video to a violation's timestamp.
+export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
+  ({ videoUrl }, ref) => {
+    return (
+      <div className="w-full bg-black rounded-lg overflow-hidden border border-gray-700 shadow-lg">
+        <video
+          ref={ref}
+          key={videoUrl}
+          className="w-full aspect-video"
+          controls
+          autoPlay
+          muted
+        >
+          <source src={videoUrl} />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    );
+  }
+);
+
+VideoPlayer.displayName = 'VideoPlayer';

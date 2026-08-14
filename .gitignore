@@ -12,6 +12,19 @@ dist
 dist-ssr
 *.local
 
+# Secrets — NEVER commit real keys (.env.example is the safe template and IS tracked)
+.env
+**/.env
+backend/.env
+
+# Python backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+result.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
