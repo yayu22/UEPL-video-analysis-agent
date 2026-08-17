@@ -6,7 +6,7 @@ One public entry point, `analyze_clip`, that:
      equipment — the original app uploaded the whole video twice),
   2. runs behaviour analysis with the right prompt for the camera type,
   3. runs equipment/QA analysis,
-  4. detects a wrong-camera-view mismatch (the prompts emit a WRONG_VIEW sentinel),
+  4. detects a wrong-camera-view mismatch (a cheap view classifier + the prompts' WRONG_VIEW sentinel),
   5. scores it into a driver profile,
   6. cleans the uploaded file up.
 
@@ -47,9 +47,34 @@ def analyze_clip(
     warnings: list[str] = []
     events: list[dict] = []
     equipment: list[dict] = []
+    view_ok = True
+    detected_view = None
 
     file_obj = gc.upload_video(path, mime_type=mime_type)
     try:
+        # --- View pre-check: catch a mismatched upload BEFORE analysing ---------
+        if config.VERIFY_VIEW:
+            detected_view = gc.classify_view(file_obj)   # 'cabin' | 'front' | 'unclear'
+            if detected_view in ("cabin", "front") and detected_view != camera.value:
+                msg = (f"Camera-view mismatch: you selected {camera.value.upper()} but this clip "
+                       f"looks like a {detected_view.upper()} view.")
+                policy = config.VIEW_MISMATCH_POLICY
+                if policy == "reject":
+                    return {
+                        "camera": camera.value,
+                        "detected_view": detected_view,
+                        "view_ok": False,
+                        "warnings": [msg + " Re-upload it under the correct camera."],
+                        "events": [],
+                        "equipment": [],
+                        "profile": scoring.profile_from_events([]),
+                    }
+                if policy == "autocorrect":
+                    warnings.append(msg + f" Analyzed as {detected_view.upper()}.")
+                    camera = CameraType(detected_view)
+                else:  # "off" or unknown -> analyse as selected, but warn
+                    warnings.append(msg)
+
         cats = config.categories_for(camera)
 
         if run_behaviour:
@@ -58,12 +83,14 @@ def analyze_clip(
             else:
                 b_prompt, fps = prompts.front_prompt(), config.FRONT_FPS
             events = gc.analyze_behaviour(file_obj, b_prompt, cats, fps)
+            # Secondary net: the behaviour prompt's own WRONG_VIEW sentinel.
             if _is_wrong_view(events):
                 warnings.append(
-                    f"Camera-view mismatch: this clip does not look like a '{camera.value}' view "
-                    f"({events[0].get('reason')}). Behaviour results suppressed."
+                    f"Camera-view mismatch: this clip does not look like a '{camera.value}' view. "
+                    "Behaviour results suppressed."
                 )
                 events = []
+                view_ok = False
             else:
                 for e in events:
                     e["camera"] = camera.value
@@ -78,7 +105,8 @@ def analyze_clip(
 
     return {
         "camera": camera.value,
-        "view_ok": not warnings,
+        "detected_view": detected_view,
+        "view_ok": view_ok,
         "warnings": warnings,
         "events": events,
         "equipment": equipment,

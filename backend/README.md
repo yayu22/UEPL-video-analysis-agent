@@ -172,4 +172,7 @@ back — exactly the loop the AFDD agents already run on GCP.
 ## Tuning knobs (all in `config.py` / env)
 - `UEPL_BEHAVIOUR_MODEL` — upgrade to `gemini-3.7-flash` (cheaper audio, more accurate).
 - `UEPL_FRONT_FPS` / `UEPL_CABIN_FPS` — frame sampling density vs. cost.
+- `UEPL_VERIFY_VIEW` (default on) + `UEPL_VIEW_MISMATCH_POLICY` (`reject` | `autocorrect` | `off`) —
+  catch a clip uploaded under the wrong camera (a front/road clip submitted as cabin, etc.).
+  Adds one cheap cabin-vs-front classification call before analysis.
 - `CATEGORY_WEIGHTS`, `SEVERITY_POINTS`, `_GRADE_BANDS`, `RISK_SCALE` — scoring model.

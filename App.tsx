@@ -61,7 +61,13 @@ export default function App() {
     setShowResults(false);
   };
 
-  const cameraLabel = videoType === VideoType.Cabin ? 'Cabin Camera' : 'Front Camera';
+  // Use the camera the backend actually ANALYZED (matters when view-mismatch
+  // autocorrect is enabled), falling back to the user's selection.
+  const analyzedType: VideoType =
+    result?.camera === 'front' ? VideoType.Front
+    : result?.camera === 'cabin' ? VideoType.Cabin
+    : (videoType ?? VideoType.Cabin);
+  const cameraLabel = analyzedType === VideoType.Cabin ? 'Cabin Camera' : 'Front Camera';
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 font-sans p-4 sm:p-6 lg:p-8">
@@ -86,23 +92,37 @@ export default function App() {
               </div>
             ))}
 
-            {result?.profile && !isLoading && <DriverProfileCard profile={result.profile} />}
+            {result && !isLoading && result.view_ok === false ? (
+              /* Wrong camera type for this clip — don't show a misleading empty profile. */
+              <div className="mb-8 p-8 bg-gray-800/50 border border-amber-700 rounded-2xl text-center">
+                <p className="text-3xl mb-2">🎥⚠️</p>
+                <p className="text-lg font-semibold text-amber-300 mb-1">Wrong camera type for this video</p>
+                <p className="text-sm text-gray-400 max-w-xl mx-auto">
+                  {result.warnings?.[0] ?? 'This clip does not match the selected camera view.'}
+                </p>
+                <p className="text-xs text-gray-500 mt-3">
+                  Click “Analyze Another Video” and choose the correct camera.
+                </p>
+              </div>
+            ) : (
+              <>
+                {result?.profile && !isLoading && <DriverProfileCard profile={result.profile} />}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2">
-                <div className="mb-2 text-sm text-gray-400">
-                  {cameraLabel}{result?.filename ? ` · ${result.filename}` : ''}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2">
+                    <div className="mb-2 text-sm text-gray-400">
+                      {cameraLabel}{result?.filename ? ` · ${result.filename}` : ''}
+                    </div>
+                    <VideoPlayer ref={videoRef} videoUrl={videoUrl} />
+                    <AnalysisLog events={result?.events ?? []} isLoading={isLoading} onSeek={handleSeek} />
+                  </div>
+                  <div className="lg:col-span-1 space-y-8">
+                    <ViolationList videoType={analyzedType} events={result?.events ?? []} />
+                    <EquipmentChecklist equipmentIssues={result?.equipment ?? []} />
+                  </div>
                 </div>
-                <VideoPlayer ref={videoRef} videoUrl={videoUrl} />
-                <AnalysisLog events={result?.events ?? []} isLoading={isLoading} onSeek={handleSeek} />
-              </div>
-              <div className="lg:col-span-1 space-y-8">
-                {videoType && (
-                  <ViolationList videoType={videoType} events={result?.events ?? []} />
-                )}
-                <EquipmentChecklist equipmentIssues={result?.equipment ?? []} />
-              </div>
-            </div>
+              </>
+            )}
 
             {error && (
               <div className="mt-8 text-center p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-300">

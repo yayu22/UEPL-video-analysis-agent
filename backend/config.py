@@ -74,6 +74,15 @@ FILE_POLL_INTERVAL_S = 2
 MAX_RETRIES = 4
 RETRY_BASE_DELAY_S = 2.0
 
+# View verification — catch a mismatched upload (e.g. a front/road clip submitted
+# as cabin) with a cheap cabin-vs-front classification pass BEFORE analysis.
+# Policy on mismatch:
+#   "reject"      -> don't analyse; return a clear mismatch message (default)
+#   "autocorrect" -> analyse as the DETECTED view instead, with a notice
+#   "off"         -> analyse as selected anyway, but attach a warning
+VERIFY_VIEW = os.environ.get("UEPL_VERIFY_VIEW", "1").lower() not in ("0", "false", "no", "")
+VIEW_MISMATCH_POLICY = os.environ.get("UEPL_VIEW_MISMATCH_POLICY", "reject")
+
 # Ingestion mode — how the video reaches this backend (see app.py):
 #   "direct" -> browser POSTs the file to /api/analyze  (Cloud Run / any server)
 #   "url"    -> browser uploads to blob storage, POSTs the URL to /api/analyze-url

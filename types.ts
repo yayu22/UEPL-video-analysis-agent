@@ -48,8 +48,10 @@ export interface DriverProfile {
 
 // Full response from POST /api/analyze
 export interface AnalysisResponse {
-  camera: string;
-  view_ok: boolean;
+  camera: string;              // the camera actually analyzed (may differ if autocorrected)
+  detected_view?: string;      // 'cabin' | 'front' | 'unclear' from the pre-check
+  view_ok: boolean;            // false when the upload didn't match the selected camera
+
   warnings: string[];
   events: BehaviourEvent[];
   equipment: EquipmentIssue[];

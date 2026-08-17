@@ -308,3 +308,47 @@ def analyze_equipment(file_obj, prompt: str, categories: list[str]) -> list[dict
                     _equipment_schema(categories), config.THINKING_BUDGET_EQUIPMENT,
                     config.EQUIPMENT_FPS)
     return validate_equipment(raw, categories)
+
+
+# --------------------------------------------------------------------------- #
+# View classifier (cabin vs front) — catches mismatched uploads
+# --------------------------------------------------------------------------- #
+_VIEW_PROMPT = (
+    "You are shown a short truck dashcam clip. Classify the CAMERA VIEWPOINT:\n"
+    "- 'cabin' = interior / driver-facing: you can see occupants, the steering wheel, or the cab.\n"
+    "- 'front' = forward road-facing: you see the road ahead, lane markings, other vehicles.\n"
+    "Reply with EXACTLY one word: cabin, front, or unclear. No other text."
+)
+
+
+def classify_view(file_obj) -> str:
+    """Cheap cabin-vs-front classification used to catch a mismatched upload.
+
+    Returns 'cabin', 'front', or 'unclear'. Never raises — a failed pre-check must
+    not block the real analysis (falls back to 'unclear').
+    """
+    cfg = types.GenerateContentConfig(
+        temperature=0,
+        max_output_tokens=16,
+        safety_settings=_safety_settings(),
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
+    )
+
+    def call():
+        return client().models.generate_content(
+            model=config.EQUIPMENT_MODEL,
+            contents=[_video_part(file_obj, 0.5), _VIEW_PROMPT],  # ~0.5 fps is plenty to tell cabin from road
+            config=cfg,
+        )
+
+    try:
+        resp = _with_retries(call, "classify_view")
+        text = (resp.text or "").strip().lower()
+    except Exception as e:  # noqa: BLE001 - never let the pre-check kill analysis
+        log.warning("classify_view failed (%s); skipping view check", e)
+        return "unclear"
+    if "cabin" in text:
+        return "cabin"
+    if "front" in text:
+        return "front"
+    return "unclear"
