@@ -10,7 +10,7 @@ One public entry point, `analyze_clip`, that:
   5. scores it into a driver profile,
   6. cleans the uploaded file up.
 
-This module is deliberately transport-agnostic: the FastAPI app (api.py) and the
+This module is deliberately transport-agnostic: the FastAPI app (app.py) and the
 batch worker (worker.py) both just call analyze_clip.
 """
 

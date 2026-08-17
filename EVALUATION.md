@@ -119,7 +119,7 @@ Browser (React, no key)  ──HTTPS──►  Backend (FastAPI, Python)  ──
 | Model | 2.5-flash (pinned) | configurable; documented upgrade to `gemini-3.7-flash` |
 
 New backend lives in [`backend/`](backend/): `config.py`, `prompts.py`,
-`gemini_client.py`, `analysis.py`, `scoring.py`, `api.py`, `worker.py`. It typechecks/
+`gemini_client.py`, `analysis.py`, `scoring.py`, `app.py`, `worker.py`. It typechecks/
 imports cleanly against `google-genai` 1.47.0; the frontend builds cleanly.
 
 ---
