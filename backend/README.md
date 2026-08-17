@@ -32,7 +32,7 @@ GCP deployment.
 | `gemini_client.py` | Files API upload+poll, retries, structured output, safety, validation |
 | `analysis.py` | orchestration: upload once → behaviour + equipment → profile |
 | `scoring.py` | driver profiling (per-clip + multi-clip aggregate) |
-| `api.py` | FastAPI app the frontend calls |
+| `app.py` | FastAPI app the frontend calls |
 | `worker.py` | CLI / batch entry point (also an AFDD-style fleet-worker template) |
 
 ## Setup
@@ -119,6 +119,48 @@ gunicorn -k uvicorn.workers.UvicornWorker app:app --bind :$PORT --timeout 600
 ```
 Set `GENAI_API_KEY` as a secret and raise the request timeout — full-video analysis of
 a 1-min clip takes tens of seconds. No body-size cap, so `direct` upload works.
+
+### C) Plain cloud VM (GCE / EC2 — the simplest option, matches the AFDD/monit systemd pattern)
+A VM has **no serverless limits**, so use `direct` mode — **no blob storage needed**.
+The Vercel files (`vercel.json`, `../api/*.ts`) are simply unused; leave or delete them.
+```bash
+# on the VM
+git clone <repo> && cd UEPL-video-analysis-agent/backend
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt gunicorn
+printf 'GENAI_API_KEY=YOUR_KEY\nUEPL_INGEST_MODE=direct\nUEPL_CORS_ORIGINS=https://YOUR_FRONTEND\n' > .env
+# smoke test:
+gunicorn -k uvicorn.workers.UvicornWorker app:app --bind 127.0.0.1:8000 --workers 2 --timeout 600
+```
+Run it as a **systemd** service (like monit's `daphne.service`) — `/etc/systemd/system/uepl.service`:
+```ini
+[Unit]
+Description=UEPL analysis backend
+After=network.target
+[Service]
+WorkingDirectory=/opt/uepl/backend
+EnvironmentFile=/opt/uepl/backend/.env
+ExecStart=/opt/uepl/backend/.venv/bin/gunicorn -k uvicorn.workers.UvicornWorker app:app --bind 127.0.0.1:8000 --workers 2 --timeout 600
+Restart=always
+User=www-data
+[Install]
+WantedBy=multi-user.target
+```
+`sudo systemctl enable --now uepl`. Then put **nginx** in front for TLS and — crucially —
+to allow large uploads (the direct path sends the whole video):
+```nginx
+server {
+  server_name api.yourdomain.com;
+  client_max_body_size 550M;      # MUST exceed UEPL_MAX_UPLOAD_BYTES (default 500M)
+  location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_read_timeout 600s;       # full-video analysis takes tens of seconds
+    proxy_request_buffering off;   # stream large uploads instead of buffering
+  }
+}
+```
+Point the frontend at it: `VITE_UPLOAD_MODE=direct`, `VITE_API_BASE=https://api.yourdomain.com`.
+Build the frontend (`npm run build`) and serve `dist/` from the same nginx, or host it on Vercel.
 
 **Switching targets is config-only:** flip `UEPL_INGEST_MODE` on the backend and
 `VITE_UPLOAD_MODE` + `VITE_API_BASE` on the frontend — no code changes.
