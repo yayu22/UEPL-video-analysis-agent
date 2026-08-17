@@ -74,6 +74,16 @@ FILE_POLL_INTERVAL_S = 2
 MAX_RETRIES = 4
 RETRY_BASE_DELAY_S = 2.0
 
+# Ingestion mode — how the video reaches this backend (see app.py):
+#   "direct" -> browser POSTs the file to /api/analyze  (Cloud Run / any server)
+#   "url"    -> browser uploads to blob storage, POSTs the URL to /api/analyze-url
+#               (required on Vercel, whose functions cap request bodies at 4.5 MB)
+# Both endpoints always exist; this flag is just advertised via GET /api/config so
+# the frontend picks the matching path. Either way the clip is only ever a temp file.
+INGEST_MODE = os.environ.get("UEPL_INGEST_MODE", "direct")
+# Max bytes to download when analysing by URL.
+MAX_DOWNLOAD_BYTES = int(os.environ.get("UEPL_MAX_DOWNLOAD_BYTES", str(600 * 1024 * 1024)))
+
 
 # --------------------------------------------------------------------------- #
 # Camera views

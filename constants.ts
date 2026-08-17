@@ -4,6 +4,19 @@ import { VideoType } from './types';
 export const API_BASE =
   (import.meta as any).env?.VITE_API_BASE ?? 'http://localhost:8000';
 
+// How the video reaches the backend (see services/apiService.ts):
+//   'direct' = POST the file to the backend (Cloud Run / any server).
+//   'blob'   = upload to Vercel Blob first, send only the URL (required on Vercel).
+// Switch deploy targets by changing this env var — no code changes.
+export const UPLOAD_MODE =
+  (((import.meta as any).env?.VITE_UPLOAD_MODE ?? 'direct') as 'direct' | 'blob');
+// Vercel Blob helper routes (only used in 'blob' mode). These are Node functions
+// that live in /api of THIS frontend project.
+export const BLOB_UPLOAD_ROUTE =
+  (import.meta as any).env?.VITE_BLOB_UPLOAD_ROUTE ?? '/api/upload';
+export const BLOB_DELETE_ROUTE =
+  (import.meta as any).env?.VITE_BLOB_DELETE_ROUTE ?? '/api/cleanup';
+
 // --------------------------------------------------------------------------- //
 // Taxonomies — MUST match backend/config.py. Used to render the checklists so a
 // category is shown even when it wasn't detected (as "CLEAR").

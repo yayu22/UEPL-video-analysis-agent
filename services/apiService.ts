@@ -1,11 +1,23 @@
 import { AnalysisResponse, VideoType } from '../types';
-import { API_BASE } from '../constants';
+import { API_BASE, UPLOAD_MODE, BLOB_UPLOAD_ROUTE, BLOB_DELETE_ROUTE } from '../constants';
+
+async function errorDetail(res: Response): Promise<string> {
+  let detail = `${res.status} ${res.statusText}`;
+  try {
+    const body = await res.json();
+    if (body?.detail) detail = body.detail;
+    else if (body?.error) detail = body.error;
+  } catch {
+    /* non-JSON error body */
+  }
+  return detail;
+}
 
 /**
- * Send a video to the backend for driver-behaviour + equipment analysis.
- * The Gemini key lives on the server; the browser only talks to our API.
+ * DIRECT mode — POST the video file straight to the backend.
+ * Best for Cloud Run / any host that accepts large request bodies.
  */
-export async function analyzeVideo(file: File, camera: VideoType): Promise<AnalysisResponse> {
+async function analyzeDirect(file: File, camera: VideoType): Promise<AnalysisResponse> {
   const form = new FormData();
   form.append('file', file);
   form.append('camera', camera);
@@ -13,22 +25,55 @@ export async function analyzeVideo(file: File, camera: VideoType): Promise<Analy
   let res: Response;
   try {
     res = await fetch(`${API_BASE}/api/analyze`, { method: 'POST', body: form });
-  } catch (e) {
-    throw new Error(
-      `Could not reach the analysis backend at ${API_BASE}. Is it running? (uvicorn api:app --port 8000)`
-    );
+  } catch {
+    throw new Error(`Could not reach the analysis backend at ${API_BASE}. Is it running?`);
   }
-
-  if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = body.detail;
-    } catch {
-      /* ignore non-JSON error bodies */
-    }
-    throw new Error(`Analysis failed: ${detail}`);
-  }
-
+  if (!res.ok) throw new Error(`Analysis failed: ${await errorDetail(res)}`);
   return (await res.json()) as AnalysisResponse;
+}
+
+/**
+ * BLOB mode — upload the clip to Vercel Blob, send only the URL to the backend,
+ * then DELETE the blob. Required on Vercel (4.5 MB function body cap). The blob is
+ * transient: it is removed after analysis whether it succeeds or fails, so nothing
+ * is kept.
+ */
+async function analyzeViaBlob(file: File, camera: VideoType): Promise<AnalysisResponse> {
+  const { upload } = await import('@vercel/blob/client');
+  const blob = await upload(file.name, file, {
+    access: 'public',
+    handleUploadUrl: BLOB_UPLOAD_ROUTE,
+    contentType: file.type || undefined,
+  });
+
+  try {
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/api/analyze-url`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ video_url: blob.url, camera }),
+      });
+    } catch {
+      throw new Error(`Could not reach the analysis backend at ${API_BASE}. Is it running?`);
+    }
+    if (!res.ok) throw new Error(`Analysis failed: ${await errorDetail(res)}`);
+    return (await res.json()) as AnalysisResponse;
+  } finally {
+    // Keep nothing — delete the uploaded blob (best-effort).
+    try {
+      await fetch(BLOB_DELETE_ROUTE, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: blob.url }),
+      });
+    } catch {
+      /* best-effort cleanup; the blob is unguessable and can be lifecycle-purged too */
+    }
+  }
+}
+
+/** Analyze a video, using whichever ingestion mode is configured (VITE_UPLOAD_MODE). */
+export async function analyzeVideo(file: File, camera: VideoType): Promise<AnalysisResponse> {
+  return UPLOAD_MODE === 'blob' ? analyzeViaBlob(file, camera) : analyzeDirect(file, camera);
 }

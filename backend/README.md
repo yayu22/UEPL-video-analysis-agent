@@ -46,10 +46,20 @@ export GENAI_API_KEY=...    # or rely on .env / your shell
 
 ## Run the API
 ```bash
-uvicorn api:app --reload --port 8000
-# POST /api/analyze  (multipart: file=<video>, camera=cabin|front)
-# GET  /health   GET /api/taxonomy
+uvicorn app:app --reload --port 8000
+# POST /api/analyze       (multipart: file=<video>, camera=cabin|front)   [direct mode]
+# POST /api/analyze-url   (json: {video_url, camera})                     [url/blob mode]
+# GET  /health   GET /api/config   GET /api/taxonomy
 ```
+
+### Ingestion modes (config-switchable, for different deploy targets)
+The video is **always** processed as a temp file and deleted — nothing is persisted.
+Two ways it can arrive, chosen by `UEPL_INGEST_MODE` (advertised at `GET /api/config`):
+- **`direct`** — browser POSTs the file to `/api/analyze`. Use on **Cloud Run / any
+  server** that accepts large request bodies.
+- **`url`** — browser uploads to blob storage, then POSTs the URL to `/api/analyze-url`,
+  and the server downloads it. Required on **Vercel** (functions cap request bodies at
+  4.5 MB). The uploaded blob is deleted right after analysis (see the frontend).
 
 ## Quick local test (CLI) against sample clips
 ```bash
@@ -87,14 +97,31 @@ python worker.py --dir "D:/Driver Behaviour analysis Agent/Front (Road-side)" --
 }
 ```
 
-## Deploy (GCP, aligned with AFDD)
-Cloud Run is the natural fit:
+## Deploy — pick a target, it's just configuration
+
+### A) Vercel (this folder as the project root)
+`app.py` exposes `app`, which Vercel auto-detects as a FastAPI function; `vercel.json`
+sets `maxDuration`. Because Vercel caps request bodies at **4.5 MB**, you MUST use the
+URL ingestion path:
+```bash
+# In the Vercel project (Root Directory = backend):
+#   Env:  GENAI_API_KEY, UEPL_INGEST_MODE=url, UEPL_CORS_ORIGINS=https://<frontend>
+#   The frontend uploads to Vercel Blob and calls /api/analyze-url.
+```
+Note: `maxDuration: 300` (in `vercel.json`) needs Pro/Fluid compute; Hobby caps at
+60 s, which may time out on long clips. Bump/lower it there.
+
+### B) Cloud Run / any server (aligned with AFDD, recommended for large clips)
 ```bash
 # Dockerfile: python:3.11-slim + pip install -r requirements.txt + gunicorn
-gunicorn -k uvicorn.workers.UvicornWorker api:app --bind :$PORT --timeout 600
+gunicorn -k uvicorn.workers.UvicornWorker app:app --bind :$PORT --timeout 600
+#   Env:  GENAI_API_KEY (secret), UEPL_INGEST_MODE=direct
 ```
-Set `GENAI_API_KEY` as a Cloud Run secret. Raise the request timeout — Files-API
-upload + full-video analysis of a 1-min clip takes tens of seconds.
+Set `GENAI_API_KEY` as a secret and raise the request timeout — full-video analysis of
+a 1-min clip takes tens of seconds. No body-size cap, so `direct` upload works.
+
+**Switching targets is config-only:** flip `UEPL_INGEST_MODE` on the backend and
+`VITE_UPLOAD_MODE` + `VITE_API_BASE` on the frontend — no code changes.
 
 For **fleet-scale** automatic profiling (no UI), adapt `worker.py`: poll the fleet
 API for new trips, pull the signed video URL, `analyze_clip`, and POST the profile
