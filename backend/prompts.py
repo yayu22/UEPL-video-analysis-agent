@@ -67,9 +67,15 @@ Never invent an event to "have something" — an empty array is the correct answ
 
 SEVERITY_GUIDE = """\
 SEVERITY GUIDE:
-  - high   = imminent danger / gross violation (driver asleep or eyes closed across frames, phone-to-ear at speed, wrong-side overtake into oncoming traffic, hard swerve).
+  - high   = imminent danger / gross violation (driver asleep or eyes closed across frames, phone-to-ear at speed, wrong-side overtake into oncoming traffic, hard swerve). A confirmed accident/collision is ALWAYS high.
   - medium = clear violation, moderate risk (one hand off wheel for a while, tailgating, speed clearly over limit, no seatbelt at speed).
   - low    = minor / policy breach, low immediate risk (loose items, brief glance away, smoking)."""
+
+SELF_CHECK = """\
+ACCURACY SELF-CHECK (do this before you output): re-examine EVERY event you drafted and keep only what the evidence clearly supports.
+- WHO: confirm whether it was the DRIVER or the FOD (co-driver). If you cannot tell them apart, say so in the reason and set confidence < 0.6 — never guess, never swap them.
+- WHAT: confirm the exact detail is actually visible/audible (a seatbelt sash clearly ABSENT across an UNOCCLUDED torso; a phone actually in a hand; eyes actually closed). A detail hidden by an arm, posture, clothing, glare or darkness is NOT evidence — drop it or lower confidence.
+- Do NOT state as fact anything you are inferring or assuming. When in doubt, omit. Missing a borderline event is better than making a false claim."""
 
 
 # --------------------------------------------------------------------------- #
@@ -80,10 +86,11 @@ def cabin_prompt() -> str:
     return f"""\
 You are an expert driver-behaviour analyst auditing an IN-CABIN dashcam recording (video AND audio) from a Pakistani cargo/tanker truck. Profile the driver by detecting genuine risky or non-compliant behaviour across the whole clip.
 
-WHO IS WHO:
-- The DRIVER sits on the RIGHT (right-hand-drive vehicle) with hands toward the steering wheel.
+WHO IS WHO (identify by ROLE, not by image side):
+- The DRIVER is the occupant seated behind the STEERING WHEEL / whose hands operate the wheel. Depending on how the camera is mounted (and mirroring), the driver may appear on EITHER the left OR the right of the image — do NOT assume a side; use the steering wheel and driving actions to decide who the driver is.
 - The "FOD" is the single AUTHORISED co-driver/helper who may ride along (company term; it does NOT mean debris). One co-driver is allowed.
 - Any occupant BEYOND the driver + one FOD is an "Unauthorized Passenger".
+- Before attributing ANY behaviour, first decide whether the person is the driver or the FOD. If you genuinely cannot tell them apart, lower confidence and say so in the reason — never guess, and never attribute one person's state to the other.
 
 YOU CANNOT SEE THE ROAD: this is an interior camera. You do NOT know for certain whether the truck is moving. Infer motion only from strong cabin cues (engine vibration, scenery sliding past the side windows, the driver actively steering). If motion state is unclear, do NOT flag behaviours that only matter while moving — omit rather than guess.
 
@@ -98,24 +105,29 @@ CAMERA NOTE: the lens is wide-angle and often side/overhead-mounted, so a driver
 ALLOWED CATEGORIES (use these exact strings):
 {cats}
 
+ACCIDENT / IMPACT CHECK — DO THIS FIRST: before anything else, scan the WHOLE clip for a crash. A crash shows as a sudden violent jolt; the CAMERA being knocked askew mid-clip (the view abruptly and PERMANENTLY shifts — e.g. ends up pointing at the seat, floor or roof and the occupants leave frame); a loud bang/impact/breaking-glass sound or screaming on the audio; or occupants thrown/braced/slumped. If you find one, you MUST emit an "Accident or Collision" event (severity high). NEVER dismiss a mid-clip camera-angle change or the post-crash aftermath as merely an equipment fault — a camera suddenly knocked out of position IS evidence of an impact.
+
 CATEGORY DEFINITIONS (INCLUDE / EXCLUDE):
 1. "Distracted Driving" — the DRIVER's attention is taken off driving: holding/looking at/operating a phone, texting, watching a video, eating or drinking, reaching for objects, or eyes clearly DOWN in the lap / fully turned away across multiple frames. For a phone CALL: only attribute it to the driver if you can VISUALLY corroborate it (phone at the driver's ear, or the driver's mouth moving in call cadence). If a call is only audible and you cannot tell whether the driver or the FOD is speaking, do NOT log it as driver Distracted Driving. EXCLUDE brief mirror/dashboard glances.
-2. "Driver No Seatbelt" — the driver's seatbelt sash is CLEARLY absent across the chest AND the driver's torso is clearly visible/unoccluded. If clothing, arm, or low light hides the belt line, do NOT flag.
+2. "Driver No Seatbelt" — flag ONLY when the diagonal belt sash is CLEARLY absent across the driver's chest AND the torso is fully visible and unoccluded. A sash hidden by an arm, loose/dark clothing, a slouched or turned posture, a cross-body strap, or low light is NOT evidence of "no belt" — do NOT flag. When unsure, omit.
 3. "Driver Fatigue" — DRIVER only: eyes closed across 2+ consecutive sampled frames, head nodding/sleeping, or repeated yawning. EXCLUDE the FOD (a sleeping/yawning co-driver is "FOD Violation").
 4. "Casual Driving" — driving one-handed for a sustained period, or clearly slouched/improper posture, with NO other distraction. If a hand is off the wheel because of a phone/food, log that single event as "Distracted Driving" instead (never both).
 5. "Smoking" — the driver holding/drawing on a lit cigarette or vape (visible cigarette/smoke at the lips or in hand).
 6. "Road Rage" — judged PRIMARILY from AUDIO: the driver yelling, cursing, or making threats at other road users. Visible aggression (angry outward gestures, enraged expression) MAY corroborate an audio finding but is not sufficient alone, because you cannot see the road users the anger targets. Do not infer road rage from honking alone.
 7. "Unauthorized Passenger" — a third (or more) person in the cabin beyond the driver + one FOD.
-8. "FOD Violation" — the co-driver (FOD): absent when a co-driver is expected, OR clearly using a phone / on a call, OR seatbelt clearly absent with torso visible, OR sleeping / repeatedly yawning, OR clearly inattentive. Only flag what you can actually see/hear.
+8. "FOD Violation" — the co-driver (FOD): absent when a co-driver is expected, OR clearly using a phone / on a call, OR the FOD's seatbelt sash is clearly absent while the FOD's torso is fully visible and unoccluded (a belt hidden by an arm, posture, feet-up slouch, or clothing does NOT count — do not claim it), OR sleeping / repeatedly yawning, OR clearly inattentive. Only flag what you can actually see/hear, and only about the FOD (never the driver).
 9. "Loose Items" — objects that do NOT belong in the cab and are unsecured near the occupants/controls such that they could become projectiles or foul the controls (loose tools, hard objects, bundles piled on the dash/engine cover). NOT loose items: a single water bottle, a phone in a mount/hand, a bag resting on the passenger seat, or normal worn clothing. Require the object to be plausibly mobile and near the driver/controls; otherwise omit.
+10. "Accident or Collision" — signs THIS vehicle was in a crash/impact. Flag if you see or hear ANY of: a sudden violent jolt or shake; occupants thrown/whipped forward or sideways, bracing, or slumped/injured afterwards; the CAMERA ITSELF abruptly knocked out of position mid-clip (view suddenly and permanently shifts, occupants leave frame); a loud bang/crash/impact sound, breaking glass, or screaming on the audio; an airbag; or a violent stop followed by stillness/chaos. CRITICAL — set severity "high" and always report it (even alongside other issues). Only skip if a camera shift is clearly a gentle manual re-aim with NO jolt, motion, or impact sound.
 
-DE-OVERLAP RULE: assign each event to the SINGLE best-fitting category. Never log the same moment under two categories.
+DE-OVERLAP RULE: assign each event to the SINGLE best-fitting category. Never log the same moment under two categories. If a crash occurred, "Accident or Collision" takes precedence over everything else at that moment.
 
 {SEVERITY_GUIDE}
 
 FALSE-POSITIVE GUARDRAILS: only flag clear, sustained evidence. Dark cabin, motion blur, glare, or an occluded face → do NOT flag that behaviour. When genuinely in doubt, do NOT flag (or use confidence < 0.6 for human review).
 
 VIEW SANITY CHECK: if this footage is clearly a FORWARD ROAD view (no cabin interior, no driver visible), return EXACTLY: [{{"reason":"WRONG_VIEW: this appears to be a front/road camera, not an in-cabin view.","category":"Distracted Driving","severity":"low","confidence":0.0,"timestamp":"not visible","start_s":0,"end_s":0,"speed_kmh":null}}] — do not analyse behaviour on the wrong view.
+
+{SELF_CHECK}
 
 {OUTPUT_CONTRACT}"""
 
@@ -140,6 +152,8 @@ ROAD CONTEXT — PAKISTAN, LEFT-HAND TRAFFIC (vehicles keep LEFT; steering is on
 ALLOWED CATEGORIES (use these exact strings):
 {cats}
 
+ACCIDENT / IMPACT CHECK — DO THIS FIRST: scan the WHOLE clip for a collision/impact — a vehicle/object/pedestrian/barrier suddenly looming then contact; an extreme violent stop with debris or a spin; the camera view jolted/knocked askew mid-clip; or a chaotic/tilted post-crash scene. If present, you MUST emit an "Accident or Collision" event (severity high).
+
 CATEGORY DEFINITIONS (INCLUDE / EXCLUDE):
 1. "Lane Discipline" — the truck cruises/sits in the right-most (fast) lane on a multi-lane road with NO vehicle being overtaken, straddles lane markings for a sustained period, or drifts across lanes without cause. If you cannot see the road markings/lane layout, do NOT flag this.
 2. "Speed Violation" — read the BOTTOM-LEFT speed number. Limits: DAY (~06:00-18:30) max 50 km/h; NIGHT (~after 18:30) max 40 km/h. Flag only when the overlay number clearly exceeds the applicable limit, and put that number in "speed_kmh". CRITICAL: if there is NO legible numeric speed overlay, you CANNOT determine speed — do NOT emit "Speed Violation" and NEVER estimate km/h from how fast the scene moves.
@@ -147,16 +161,19 @@ CATEGORY DEFINITIONS (INCLUDE / EXCLUDE):
 4. "Improper Turn" — a turn at a junction/intersection, or a U-turn, taken without slowing appropriately (a turn/U-turn should be ~10 km/h or less and after scanning). Use the speed overlay when readable. On a forward camera a full stop vs a rolling U-turn is often NOT resolvable — only flag "did not stop" if the forward scene shows a continuous lateral sweep with NO pause; if ambiguous, omit. (A "turn" is a manoeuvre at a junction/U-turn; merely following the road's own curve is a "bend" → see Harsh Driving.)
 5. "Tailgating" — following the vehicle ahead too closely for the speed (no safe stopping gap), sustained over several seconds, judged from the looming/near-constant closeness of the lead vehicle.
 6. "Harsh Driving" — abrupt, unsafe vehicle dynamics visible across frames, when NOT already captured by a higher category, for ANY of: (a) harsh braking (scene lunges/nose-dives then slows); (b) harsh acceleration (sudden strong speed-up); (c) jerky/unsteady weaving; (d) harsh cornering (a bend taken so fast the vehicle lurches); OR (e) maintaining visibly high speed through a populated/congested area with pedestrians or dense traffic within ~one vehicle-length while not shedding speed. Corroborate with a sudden change in the overlay speed where readable.
+7. "Accident or Collision" — THIS vehicle crashes or is struck: a collision with another vehicle, object, pedestrian or barrier; a sudden looming impact filling the frame; an extreme violent stop with debris/spin; the camera suddenly jolted/knocked askew mid-clip; or a static/chaotic/tilted post-impact scene. Distinct from "Harsh Driving" (hard braking with NO contact). CRITICAL — set severity "high" and always report a clear impact.
 
 VISUAL-SPEED RULE: the ban on estimating km/h from scene motion applies ONLY to "Speed Violation". For "Improper Turn" and "Harsh Driving" you MAY judge RELATIVE harshness/deceleration from motion cues (nose-dive, lurch, failure to slow), but never convert that into a specific km/h number.
 
-DE-OVERLAP / PRECEDENCE: assign each event to the SINGLE best-fitting category. Precedence when overlapping: Improper Overtaking (3) > Improper Turn (4) > Lane Discipline (1) > Harsh Driving (6). A single unsafe overtake that also crosses lanes is ONE "Improper Overtaking".
+DE-OVERLAP / PRECEDENCE: assign each event to the SINGLE best-fitting category. Precedence when overlapping: Accident or Collision (7) > Improper Overtaking (3) > Improper Turn (4) > Lane Discipline (1) > Harsh Driving (6). A single unsafe overtake that also crosses lanes is ONE "Improper Overtaking".
 
 {SEVERITY_GUIDE}
 
 FALSE-POSITIVE GUARDRAILS: only flag clear, evidenced events. Do NOT infer harsh braking/acceleration from camera shake alone — require a real change in the scene and, where readable, the speed overlay. If the road/markings are not visible enough to judge lane position, do NOT flag lane/overtaking issues. When in doubt, do NOT flag.
 
 VIEW SANITY CHECK: if this footage is clearly an IN-CABIN view (you see the driver/cabin interior, not the road ahead), return EXACTLY: [{{"reason":"WRONG_VIEW: this appears to be an in-cabin camera, not a forward/road view.","category":"Lane Discipline","severity":"low","confidence":0.0,"timestamp":"not visible","start_s":0,"end_s":0,"speed_kmh":null}}] — do not analyse the road on the wrong view.
+
+{SELF_CHECK}
 
 {OUTPUT_CONTRACT}"""
 
@@ -167,7 +184,7 @@ VIEW SANITY CHECK: if this footage is clearly an IN-CABIN view (you see the driv
 def equipment_prompt(camera: CameraType) -> str:
     is_cabin = camera == CameraType.CABIN
     angle_note = (
-        'For "Incorrect Camera Angle": this is a CABIN camera — flag if the driver (and expected FOD) is mostly out of frame or the lens points at the roof/seat/floor instead of the occupants. The driver should be visible on the RIGHT.'
+        'For "Incorrect Camera Angle": this is a CABIN camera — flag if the driver (and expected FOD) is mostly out of frame or the lens points at the roof/seat/floor instead of the occupants. The driver is whoever sits behind the steering wheel (may appear on either side of the image depending on the mount).'
         if is_cabin
         else 'For "Incorrect Camera Angle": this is a FORWARD camera — flag if the lens mostly shows sky, the truck bonnet/dashboard, or the ground instead of the road ahead. Do NOT expect to see a driver in this view.'
     )

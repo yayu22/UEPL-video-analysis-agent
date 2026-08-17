@@ -22,6 +22,7 @@ from config import (
     SEVERITY_POINTS,
     CATEGORY_WEIGHTS,
     Severity,
+    ACCIDENT_CATEGORY,
 )
 
 # Events below this confidence are NOT scored; they are surfaced separately for
@@ -91,6 +92,14 @@ def profile_from_events(events: list[dict]) -> dict:
     grade, grade_label = _grade_for(risk_points)
     safety_score = max(0, round(100 - RISK_SCALE * risk_points))
 
+    # A confirmed accident/collision is categorically the worst outcome: force the
+    # profile to the floor regardless of the point math.
+    accident_detected = any(e.get("category") == ACCIDENT_CATEGORY for e in scored)
+    possible_accident = any(e.get("category") == ACCIDENT_CATEGORY for e in review)
+    if accident_detected:
+        grade, grade_label = "F", "Critical — accident"
+        safety_score = 0
+
     # Top risks: categories ordered by contributed points, worst first.
     top_risks = sorted(
         (
@@ -101,16 +110,23 @@ def profile_from_events(events: list[dict]) -> dict:
         reverse=True,
     )
 
+    summary = _summarize(grade_label, safety_score, top_risks, len(review))
+    if accident_detected:
+        summary = "ACCIDENT / COLLISION DETECTED — " + summary
+    elif possible_accident:
+        summary += " Possible accident flagged for review (low confidence)."
+
     return {
         "safety_score": safety_score,       # 0-100, higher = safer
         "grade": grade,                     # A-F
         "grade_label": grade_label,
+        "accident_detected": accident_detected,
         "risk_points": round(risk_points, 2),
         "confirmed_event_count": len(scored),
         "review_event_count": len(review),
         "per_category": {c: v for c, v in per_category.items()},
         "top_risks": top_risks[:5],
-        "summary": _summarize(grade_label, safety_score, top_risks, len(review)),
+        "summary": summary,
         "review_items": review,
     }
 
@@ -157,20 +173,30 @@ def aggregate_profiles(clip_profiles: list[dict]) -> dict:
     grade, grade_label = _grade_for(total_points / n)
     safety_score = max(0, round(100 - RISK_SCALE * (total_points / n)))
 
+    # Any clip with a confirmed accident drags the whole driver profile to the floor.
+    accident_detected = any(p.get("accident_detected") for p in clip_profiles)
+    if accident_detected:
+        grade, grade_label = "F", "Critical — accident"
+        safety_score = 0
+
     top_risks = sorted(
         ({"category": c, **v} for c, v in merged.items()),
         key=lambda x: x["points"],
         reverse=True,
     )
+    summary = _summarize(grade_label, safety_score, top_risks, total_review)
+    if accident_detected:
+        summary = "ACCIDENT / COLLISION DETECTED — " + summary
     return {
         "clips_analyzed": len(clip_profiles),
         "safety_score": safety_score,
         "grade": grade,
         "grade_label": grade_label,
+        "accident_detected": accident_detected,
         "total_risk_points": round(total_points, 2),
         "confirmed_event_count": total_confirmed,
         "review_event_count": total_review,
         "per_category": {c: v for c, v in merged.items()},
         "top_risks": top_risks[:5],
-        "summary": _summarize(grade_label, safety_score, top_risks, total_review),
+        "summary": summary,
     }

@@ -21,6 +21,14 @@ import glob
 import argparse
 import logging
 
+# Make console output UTF-8 so summaries (em-dashes etc.) don't crash logging on a
+# Windows cp1252 console. No-op if stdout can't be reconfigured (e.g. redirected).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from config import CameraType
 import analysis
 

@@ -124,10 +124,15 @@ SEVERITY_POINTS = {
 # --------------------------------------------------------------------------- #
 # Violation taxonomies (the model MUST emit one of these exact strings)
 # --------------------------------------------------------------------------- #
+# A crash/collision. Detected on BOTH cameras and kept FIRST so it's the top-line
+# risk. A confirmed accident forces the driver profile to grade F (see scoring.py).
+ACCIDENT_CATEGORY = "Accident or Collision"
+
 # CABIN — driver-facing behaviour. "FOD" = the authorised co-driver / second
 # occupant (company term), NOT foreign-object-debris. A THIRD occupant beyond
 # driver + FOD is an "Unauthorized Passenger".
 CABIN_CATEGORIES = [
+    ACCIDENT_CATEGORY,
     "Unauthorized Passenger",
     "Distracted Driving",
     "Driver No Seatbelt",
@@ -142,6 +147,7 @@ CABIN_CATEGORIES = [
 # FRONT — forward road behaviour. Category names kept aligned with the original
 # taxonomy for continuity; definitions are sharpened in prompts.py.
 FRONT_CATEGORIES = [
+    ACCIDENT_CATEGORY,
     "Lane Discipline",
     "Speed Violation",
     "Improper Overtaking",
@@ -153,6 +159,9 @@ FRONT_CATEGORIES = [
 # Default per-category weight (multiplies the severity points). Tunable knob for
 # how much each behaviour matters to the overall driver profile.
 CATEGORY_WEIGHTS = {
+    # critical — a crash. Weighted so heavily it dominates the score even before
+    # scoring.py's hard grade-F override.
+    "Accident or Collision": 8.0,
     # cabin
     "Unauthorized Passenger": 1.2,
     "Distracted Driving": 1.5,

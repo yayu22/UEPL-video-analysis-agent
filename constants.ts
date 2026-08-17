@@ -23,6 +23,7 @@ export const BLOB_DELETE_ROUTE =
 // The backend also exposes these at GET /api/taxonomy if you prefer to fetch them.
 // --------------------------------------------------------------------------- //
 export const CABIN_CATEGORIES = [
+  'Accident or Collision',
   'Unauthorized Passenger',
   'Distracted Driving',
   'Driver No Seatbelt',
@@ -35,6 +36,7 @@ export const CABIN_CATEGORIES = [
 ];
 
 export const FRONT_CATEGORIES = [
+  'Accident or Collision',
   'Lane Discipline',
   'Speed Violation',
   'Improper Overtaking',

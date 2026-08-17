@@ -36,6 +36,7 @@ export interface DriverProfile {
   safety_score: number;    // 0-100, higher = safer
   grade: string;           // A-F
   grade_label: string;
+  accident_detected?: boolean;
   risk_points: number;
   confirmed_event_count: number;
   review_event_count: number;

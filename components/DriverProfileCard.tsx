@@ -21,6 +21,12 @@ export const DriverProfileCard: React.FC<{ profile: DriverProfile }> = ({ profil
   if (!profile) return null;
   return (
     <div className="w-full bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-700 shadow-xl mb-8">
+      {profile.accident_detected && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-600 bg-red-600/20 px-4 py-3 text-red-200 font-semibold">
+          <span className="text-lg">⚠</span>
+          Accident / collision detected — driver rating forced to F. Immediate review required.
+        </div>
+      )}
       <div className="flex items-center gap-6">
         {/* Grade dial */}
         <div className={`flex-shrink-0 h-24 w-24 rounded-2xl bg-gradient-to-br ${gradeColor(profile.grade)} flex flex-col items-center justify-center shadow-lg`}>
