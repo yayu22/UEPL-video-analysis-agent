@@ -34,6 +34,7 @@ import config
 from config import CameraType
 import analysis
 import ingest
+import usage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger("uepl.api")
@@ -91,10 +92,25 @@ def taxonomy():
     }
 
 
+@app.get("/api/usage")
+def get_usage(user_id: str, role: str = "user"):
+    """Lets the frontend always display the caller's remaining-analysis count."""
+    return usage.usage_info(user_id, role)
+
+
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(...), camera: str = Form(...)):
+async def analyze(
+    file: UploadFile = File(...),
+    camera: str = Form(...),
+    user_id: str = Form(...),
+    role: str = Form("user"),
+):
     """Direct multipart upload (Cloud Run / any server). Temp file is always deleted."""
     cam = _parse_camera(camera)
+    try:
+        usage.check_limit(user_id, role)
+    except usage.LimitReached as e:
+        raise HTTPException(status_code=429, detail=str(e))
     if file.content_type and not file.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="uploaded file must be a video")
 
@@ -113,8 +129,14 @@ async def analyze(file: UploadFile = File(...), camera: str = Form(...)):
                 out.write(chunk)
         if size < 1024:
             raise HTTPException(status_code=400, detail="uploaded file is empty or corrupt")
+        # Charge the quota for a real attempt (valid file, about to call Gemini),
+        # not for input that was rejected before any inference happened.
+        if role != "admin":
+            usage.increment(user_id)
         log.info("Analyzing %s (%.1f MB, camera=%s) [direct]", file.filename, size / 1e6, cam.value)
-        return JSONResponse(_run(tmp, cam, file.content_type or "video/mp4", file.filename))
+        result = _run(tmp, cam, file.content_type or "video/mp4", file.filename)
+        result["usage"] = usage.usage_info(user_id, role)
+        return JSONResponse(result)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
@@ -130,6 +152,8 @@ async def analyze(file: UploadFile = File(...), camera: str = Form(...)):
 class AnalyzeUrlRequest(BaseModel):
     video_url: str
     camera: str
+    user_id: str
+    role: str = "user"
 
 
 @app.post("/api/analyze-url")
@@ -137,12 +161,20 @@ def analyze_url(req: AnalyzeUrlRequest):
     """URL ingestion (Vercel / blob). Downloads to temp, analyses, deletes."""
     cam = _parse_camera(req.camera)
     try:
+        usage.check_limit(req.user_id, req.role)
+    except usage.LimitReached as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    try:
         tmp = ingest.download_to_temp(req.video_url, config.MAX_DOWNLOAD_BYTES)
     except ingest.DownloadError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
+        if req.role != "admin":
+            usage.increment(req.user_id)
         log.info("Analyzing %s (camera=%s) [url]", ingest.basename(req.video_url), cam.value)
-        return JSONResponse(_run(tmp, cam, ingest.guess_mime(req.video_url), ingest.basename(req.video_url)))
+        result = _run(tmp, cam, ingest.guess_mime(req.video_url), ingest.basename(req.video_url))
+        result["usage"] = usage.usage_info(req.user_id, req.role)
+        return JSONResponse(result)
     except Exception as e:  # noqa: BLE001
         log.exception("Analysis failed")
         raise HTTPException(status_code=500, detail=f"analysis failed: {e}")

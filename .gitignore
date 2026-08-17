@@ -24,6 +24,7 @@ __pycache__/
 venv/
 *.egg-info/
 result.json
+backend/usage.db
 
 # Vercel
 .vercel

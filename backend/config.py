@@ -84,6 +84,16 @@ INGEST_MODE = os.environ.get("UEPL_INGEST_MODE", "direct")
 # Max bytes to download when analysing by URL.
 MAX_DOWNLOAD_BYTES = int(os.environ.get("UEPL_MAX_DOWNLOAD_BYTES", str(600 * 1024 * 1024)))
 
+# --------------------------------------------------------------------------- #
+# Per-user lifetime usage limit (see usage.py)
+# --------------------------------------------------------------------------- #
+# Non-admin callers (role != "admin") are capped at USER_ANALYSIS_LIMIT total
+# analyses, ever (no periodic reset). Admin callers are unlimited. user_id/role
+# are trusted, client-supplied values — this endpoint has no auth of its own,
+# so treat this as a product-level cap, not a security boundary.
+USER_ANALYSIS_LIMIT = int(os.environ.get("UEPL_USER_ANALYSIS_LIMIT", "10"))
+USAGE_DB_PATH = os.environ.get("UEPL_USAGE_DB_PATH", os.path.join(os.path.dirname(__file__), "usage.db"))
+
 
 # --------------------------------------------------------------------------- #
 # Camera views
